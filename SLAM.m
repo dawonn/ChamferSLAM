@@ -46,7 +46,8 @@ path  = pose;
 init_guess = pose;          % Inital guess for scan matcher
 LastMapUpdatePose = pose;   % Last map update location
 WorldUpdated = true;
-SearchRange = [];           
+SearchRange = [];
+ScanTimeStamp = [];
 
 
 
@@ -55,6 +56,7 @@ for i = 1:3
     clearallplots( i );
 end
 
+%IMU_Q(:,1) = -IMU_Q(:,1);
 
 
 % Scan Matching Loop
@@ -75,20 +77,32 @@ for scanIdx = start:step:stopIdx
     stamp = Lidar_Timestamp_Sensor(scanIdx);
        
     
-    % Get the orientation from the IMU for each hit
-    %Fusion_Q = interp1(IMU_Timestamp, IMU_Q, stamp);
-
-    % Rotate all points by their orientation
-    %Fusion_scan = quatrotate(Fusion_Q, [scan, zeros(size(scan,1),1)]);
     
-    % Remove points that are probably on the ground or ceiling
-    %I = abs(Fusion_scan(:,3)) < 0.2;
-    %scan = scan(I, [1,2]);
+    
+    % Get the orientation from the IMU for each hit
+    stamp2 = Lidar_Timestamp_System(scanIdx);
+    Fusion_Q = interp1(IMU_Timestamp, IMU_Q, stamp2);
+    
+    % Skip until IMU data is available.
+    if isnan(Fusion_Q)
+        continue
+    end
+
+    % Rotate all points by IMU's yaw.
+    Fusion_scan = quatrotate(Fusion_Q, [scan, zeros(size(scan,1),1)]);
+
+    % Remove points that are out of plane
+    I = abs(Fusion_scan(:,3)) < 0.3;
+    scan = Fusion_scan(I, [1,2]);
+    
+    
+    
     
     % Init map with first scan
     if isempty(map)
         map   = scan;
         prev_stamp = stamp;
+        ScanTimeStamp = [ScanTimeStamp; stamp];
         
         % Skip to next scan
         continue
@@ -169,15 +183,12 @@ for scanIdx = start:step:stopIdx
     
     % Update current pose
     pose = T;
-
-
     path(end+1,:) = pose; %#ok<SAGROW>
     
+    
     % Make Sure Scan in proper Coordinates
-    tempScan = scan;
-    
-    
     % Current World Pose Transform
+    tempScan = scan;
     dx    = pose(1);
     dy    = pose(2);
     theta = pose(3);
@@ -278,6 +289,7 @@ for scanIdx = start:step:stopIdx
     
     % Timestamp 
     prev_stamp = stamp;
+    ScanTimeStamp = [ScanTimeStamp; stamp]; %#ok<AGROW>
     
     
 end
@@ -320,35 +332,53 @@ fl = 5;
 n = 1;
 change_current_figure(2);
 clf
+
+
 subplot(3,1,1);
-plot(diff(path(:,1),n) , 'r.')
+plot(ScanTimeStamp(2:end), diff(path(:,1),n), 'r.')
 hold on
-plot( SearchRange(:,1), 'b.')
-plot(-SearchRange(:,1), 'b.')
-title(['X: diff(path(:,1),' num2str(n) ')'])
+plot(ScanTimeStamp(2:end),  SearchRange(:,1), 'b.')
+plot(ScanTimeStamp(2:end), -SearchRange(:,1), 'b.')
+
 tmp  = diff(path(:,1),n);
 tmp2 = conv(tmp, ones(fl,1) / fl);
-plot(tmp2, '-b')
+plot(ScanTimeStamp, tmp2((1+n):(end-n-1)), '-b')
+
+%title(['X: diff(path(:,1),' num2str(n) ')'])
+%xlabel('Lidar Timestamp (Seconds)')
+title('Scan Matcher Solution')
+ylabel('dX (Meters)')
+
 
 subplot(3,1,2);
-plot(diff(path(:,2),n), 'r.')
+plot(ScanTimeStamp(2:end), diff(path(:,2),n), 'r.')
 hold on
-plot( SearchRange(:,1), 'b.')
-plot(-SearchRange(:,1), 'b.')
-title(['Y: diff(path(:,2),' num2str(n) ')'])
+plot(ScanTimeStamp(2:end),  SearchRange(:,1), 'b.')
+plot(ScanTimeStamp(2:end), -SearchRange(:,1), 'b.')
+
 tmp  = diff(path(:,2),n);
 tmp2 = conv(tmp, ones(fl,1) / fl);
-plot(tmp2, '-b')
+plot(ScanTimeStamp, tmp2((1+n):(end-n-1)), '-b')
+
+%title(['Y: diff(path(:,2),' num2str(n) ')'])
+%xlabel('Lidar Timestamp (Seconds)')
+ylabel('dY (Meters)')
+
 
 subplot(3,1,3);
-plot(rad2deg(diff(path(:,3),n)), 'r.')
+plot(ScanTimeStamp(2:end), rad2deg(diff(path(:,3),n)), 'r.')
 hold on
-plot( rad2deg(SearchRange(:,2)), 'b.')
-plot(-rad2deg(SearchRange(:,2)), 'b.')
-title(['Z: diff(path(:,3),' num2str(n) ')'])
-tmp  = rad2deg(diff(path(:,3),n));
+plot(ScanTimeStamp(2:end),  rad2deg(SearchRange(:,2)), 'b.')
+plot(ScanTimeStamp(2:end), -rad2deg(SearchRange(:,2)), 'b.')
+
+tmp  = diff(rad2deg(path(:,3)),n);
 tmp2 = conv(tmp, ones(fl,1) / fl);
-plot(tmp2, '-r')
+plot(ScanTimeStamp, tmp2((1+n):(end-n-1)), '-b');
+
+%title(['Z: diff(path(:,3),' num2str(n) ')'])
+%xlabel('Lidar Timestamp (Seconds)')
+ylabel('dYaw (Degrees)')
+
 
 print( [OutPath DatasetName '-pathDiff1'],'-dpng');
 
