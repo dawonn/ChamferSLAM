@@ -10,10 +10,9 @@ skip          = 1;       % Points
 
 % Framework Options
 verbose              = false;
-debugplots           = true;         
+debugplots           = false;         
 
 usePrevOffsetAsGuess = false;        % Constant Velocity assumption
-useScan2World        = true;         % Scan to Map vs Scan to Scan
 
 MaxVelocityLin       = 4;            % (Meters  / second   )
 MaxVelocityRot       = deg2rad(90);  % (Radians / second   )
@@ -39,15 +38,16 @@ UpdateMapDR          = deg2rad(5);   % (Radians)
 % Initialize State Variables
 nScanIndex = unique(Lidar_ScanIndex);
 
-map        = [];
-pose       = [0 0 0];
-path       = [0 0 0];
-world      = [];
-T          = [0 0 0];
-init_guess = [0 0 0];
-LastMapUpdatePose = [0 0 0];
-SearchRange = [];
+world      = [];            % Current World Map
+pose       = [0 0 0];       % Current pose
+
+map        = world;         % Current Local Map
+path  = pose;
+init_guess = pose;          % Inital guess for scan matcher
+LastMapUpdatePose = pose;   % Last map update location
 WorldUpdated = true;
+SearchRange = [];           
+
 
 
 % Clear all figures before running
@@ -85,43 +85,38 @@ for scanIdx = start:step:stopIdx
     %I = abs(Fusion_scan(:,3)) < 0.2;
     %scan = scan(I, [1,2]);
     
-    % Init World
+    % Init map with first scan
     if isempty(map)
-        % Init map and world
-        path  = pose;
-        world = map;
         map   = scan;
+        prev_stamp = stamp;
         
         % Skip to next scan
-        prev_stamp = stamp;
         continue
     end
     
     
     % Generate a local map from the world map
-    if useScan2World
-        
-        if WorldUpdated
-          % Translate current scan to map coordinates
-          dx    = init_guess(1);
-          dy    = init_guess(2);
-          theta = init_guess(3);
-          
-          M = [ cos(theta) -sin(theta) dx ;
-                sin(theta)  cos(theta) dy ;
-                0           0          1  ];
-          
-          scanWorldFrame = [scan ones(size(scan,1), 1)];
-          scanWorldFrame = scanWorldFrame * M';
-          scanWorldFrame = scanWorldFrame(:,[1,2]);
-          
-          % extract points around the current scan for a reference map
-          map = map(map(:,1) > min(scanWorldFrame(:,1)) - MapBorderSize, :);
-          map = map(map(:,1) < max(scanWorldFrame(:,1)) + MapBorderSize, :);
-          map = map(map(:,2) > min(scanWorldFrame(:,2)) - MapBorderSize, :);
-          map = map(map(:,2) < max(scanWorldFrame(:,2)) + MapBorderSize, :);
-        end
+    if WorldUpdated
+      % Translate current scan to map coordinates
+      dx    = init_guess(1);
+      dy    = init_guess(2);
+      theta = init_guess(3);
+
+      M = [ cos(theta) -sin(theta) dx ;
+            sin(theta)  cos(theta) dy ;
+            0           0          1  ];
+
+      scanWorldFrame = [scan ones(size(scan,1), 1)];
+      scanWorldFrame = scanWorldFrame * M';
+      scanWorldFrame = scanWorldFrame(:,[1,2]);
+
+      % extract points around the current scan for a reference map
+      map = map(map(:,1) > min(scanWorldFrame(:,1)) - MapBorderSize, :);
+      map = map(map(:,1) < max(scanWorldFrame(:,1)) + MapBorderSize, :);
+      map = map(map(:,2) > min(scanWorldFrame(:,2)) - MapBorderSize, :);
+      map = map(map(:,2) < max(scanWorldFrame(:,2)) + MapBorderSize, :);
     end
+  
     
     
     % Search area
@@ -173,21 +168,8 @@ for scanIdx = start:step:stopIdx
     
     
     % Update current pose
-    if useScan2World
-        pose = T;
-    else
-        % Rotate translation into map frame
-        theta = pose(3); %#ok<UNRCH>
-        Trans = [ cos(theta) -sin(theta) 0 ;
+    pose = T;
 
-                  sin(theta)  cos(theta) 0 ;
-                  0           0          1 ];
-        mapT  = Trans * T';
-
-
-        % Add previous scan to pose
-        pose = pose + [mapT(1:2)', T(3)];
-    end
 
     path(end+1,:) = pose; %#ok<SAGROW>
     
@@ -218,30 +200,23 @@ for scanIdx = start:step:stopIdx
     
     
     
-    % Add transformed data to world
-    if useScan2World
-                
-        % Update map after distance traveled. 
-        dp = abs(LastMapUpdatePose - path(end, :));
-        if (dp(1) > UpdateMapDT) || ...
-           (dp(2) > UpdateMapDT) || ... 
-           (dp(3) > UpdateMapDR)
-            LastMapUpdatePose = path(end, :);
-                
-            % Only add new points to the map 
-            I = ~logical(hits);
-            newpts = tempL(I, 1:2);            
-            world = [world; newpts]; %#ok<AGROW>
+    % Update map after distance traveled. 
+    dp = abs(LastMapUpdatePose - path(end, :));
+    if (dp(1) > UpdateMapDT) || ...
+       (dp(2) > UpdateMapDT) || ... 
+       (dp(3) > UpdateMapDR)
+        LastMapUpdatePose = path(end, :);
 
-            WorldUpdated = true;
-        else
-            WorldUpdated = false;
-        end
-        
+        % Only add new points to the map 
+        I = ~logical(hits);
+        newpts = tempL(I, 1:2);            
+        world = [world; newpts]; %#ok<AGROW>
+
+        WorldUpdated = true;
     else
-        world = [world; temp(:,1:2)]; %#ok<UNRCH>
+        WorldUpdated = false;
     end
-    
+   
     
     
     % Debug Plots
@@ -272,18 +247,12 @@ for scanIdx = start:step:stopIdx
     
         tmpW = [];
         
-        % Plot Transformed and Map and Scans
-        tempMap = map; 
-        
+        % Plot Transformed and Map and Scans        
         change_current_figure(2);
         clf
         hold on
-        plot(tempMap(:,1),tempMap(:,2),'r.', 'MarkerSize', 1)
-        if useScan2World
-            plot(scanWorldFrame(:,1),scanWorldFrame(:,2),'b.', 'MarkerSize', 1)
-        else
-            plot(tempScan(:,1),tempScan(:,2),'b.', 'MarkerSize', 1) %#ok<UNRCH>
-        end
+        plot(map(:,1),map(:,2),'r.', 'MarkerSize', 1)
+        plot(scanWorldFrame(:,1),scanWorldFrame(:,2),'b.', 'MarkerSize', 1)
         plot(tempL(:,1),tempL(:,2),'g.', 'MarkerSize', 1)
         hold off
         axis equal
@@ -294,28 +263,18 @@ for scanIdx = start:step:stopIdx
     
     
     % Select the map for the next scan
-    if useScan2World
-    
-        if WorldUpdated
-            map = world;
-        end
-        
-    else
-        map = scan; %#ok<UNRCH>
+    if WorldUpdated
+        map = world;
     end
+
     
     % Set next search starting location
-    if useScan2World
-        if usePrevOffsetAsGuess
-            init_guess = T + (path(end, :) - path(end-1, :)); %#ok<UNRCH>
-        else
-            init_guess = T;
-        end
+    if usePrevOffsetAsGuess
+        init_guess = T + (path(end, :) - path(end-1, :)); %#ok<UNRCH>
     else
-        if usePrevOffsetAsGuess %#ok<UNRCH>
-            init_guess = T;
-        end
-    end 
+        init_guess = T;
+    end
+
     
     % Timestamp 
     prev_stamp = stamp;
@@ -350,7 +309,7 @@ plot(path(:,1), path(:,2), 'r.', 'MarkerSize', 2);
 axis equal
 title(['Scan: ' num2str(scanIdx)]);
 
-hgsave([ OutPath DatasetName])
+%hgsave([ OutPath DatasetName])
 
 set(gcf,'PaperUnits','inches','PaperPosition', [0 0 8.5 11]);
 print([ OutPath DatasetName],'-dpdf');
@@ -394,5 +353,8 @@ plot(tmp2, '-r')
 print( [OutPath DatasetName '-pathDiff1'],'-dpng');
 
 
-
+% Remove debug plots when finished
+if exist([ OutPath DatasetName '-dbg.pdf' ], 'file')
+  delete([ OutPath DatasetName '-dbg.pdf' ]);
+end
 

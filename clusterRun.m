@@ -105,11 +105,6 @@ function clusterRun( jobID, taskID )
     %load myprofiledata
     %profview(0,p)
 
-
-    % Remove debug plots when finished
-    if exist([ OutPath DatasetName '-dbg.pdf' ], 'file')
-      delete([ OutPath DatasetName '-dbg.pdf' ]);
-    end
     
     % Save workspace
     %save([ OutPath DatasetName '.mat'], '-v7.3');
