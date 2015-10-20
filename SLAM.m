@@ -89,9 +89,24 @@ for scanIdx = start:step:stopIdx
         continue
     end
 
+    % Rotate the scan points in opposition to the sensed rotation.
+    Fusion_Q = quatinv(Fusion_Q);
+    
     % Rotate all points by IMU's yaw.
     Fusion_scan = quatrotate(Fusion_Q, [scan, zeros(size(scan,1),1)]);
 
+%     
+%     change_current_figure(4)
+%     clf
+%     plot3(Fusion_scan(:,1),Fusion_scan(:,2),Fusion_scan(:,3), '.r');
+%     hold on
+%     plot(scan(:,1),scan(:,2),'.b');
+%     axis equal
+%     axis([-30 30 -30 30 -1 1])
+%     pause(.1);
+    
+    
+    
     % Remove points that are out of plane
     u = mean(Fusion_scan(:,3));
     I = abs(Fusion_scan(:,3) - u) < 0.4;
