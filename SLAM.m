@@ -69,7 +69,8 @@ for scanIdx = start:step:stopIdx
     
     
     % Get Current Scan
-    [scan, pol] = getLidarXY(scanIdx, nScanIndex, Lidar_Angles, Lidar_Ranges, Lidar_ScanIndex, ...
+    [scan, pol] = getLidarXY(scanIdx, nScanIndex, Lidar_Angles, ...
+                                      Lidar_Ranges, Lidar_ScanIndex, ...
                                      'LidarRange', 30);
 
     
@@ -92,10 +93,13 @@ for scanIdx = start:step:stopIdx
     Fusion_scan = quatrotate(Fusion_Q, [scan, zeros(size(scan,1),1)]);
 
     % Remove points that are out of plane
-    I = abs(Fusion_scan(:,3)) < 0.2;
+    u = mean(Fusion_scan(:,3));
+    I = abs(Fusion_scan(:,3) - u) < 0.4;
     scan = Fusion_scan(I, [1,2]);
     %scan = Fusion_scan(:, [1,2]);
     
+    
+    % Skip empty scans...
     if size(scan,1) == 0 
       continue
     end

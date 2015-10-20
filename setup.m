@@ -22,10 +22,14 @@ stop  = 10e7;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Select dataset to run
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
- DatasetName = 'hall_and_room_w_vn';       
+% DatasetName = 'hall_and_room_w_vn';       
 % DatasetName = 'eerc_dillman_dow';         
 % DatasetName = 'campus1';                   
-% DatasetName = 'eerc_dow_dill_inout';  
+
+DatasetName = 'eerc_dow_dill_inout';
+% After the Hill
+start       = 22550;
+stop        = 38000;  
       
 % DatasetName = '2000-01-31-19-01-35';  % EERC817 Multiple passes
 % DatasetName = '2000-01-31-19-05-32';  % EERC8F
