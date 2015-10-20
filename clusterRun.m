@@ -7,9 +7,7 @@ function clusterRun( jobID, taskID )
 
     % Set up paths
     wd = pwd;
-    addpath( wd, ...
-                 [wd '/chamfer'], ...
-                 [wd '/util']);
+    addpath( wd, [wd '/util']);
 
     % Output Path
     OutPath = ['../' num2str(jobID) '/'  ];
@@ -18,8 +16,8 @@ function clusterRun( jobID, taskID )
     if taskID == 1
       mkdir(OutPath);
       copyfile('SLAM.m'   , OutPath)
-      copyfile('mattest.m', OutPath)
-      copyfile('chamfer/chamferMatch.m', OutPath)
+      copyfile('clusterRun.m', OutPath)
+      copyfile('chamferMatch.m', OutPath)
     end
 
     % Add task prefix to each file

@@ -92,10 +92,13 @@ for scanIdx = start:step:stopIdx
     Fusion_scan = quatrotate(Fusion_Q, [scan, zeros(size(scan,1),1)]);
 
     % Remove points that are out of plane
-    I = abs(Fusion_scan(:,3)) < 0.3;
+    I = abs(Fusion_scan(:,3)) < 0.2;
     scan = Fusion_scan(I, [1,2]);
+    %scan = Fusion_scan(:, [1,2]);
     
-    
+    if size(scan,1) == 0 
+      continue
+    end
     
     
     % Init map with first scan
