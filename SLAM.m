@@ -1,6 +1,13 @@
 clc
 
 
+
+%%%%% TODO: Add hit-counting to ogrid update.
+%%%%% TODO: Track 3D points in Map.
+
+
+
+
 % Scan ROI Settings
 step          = 1;       % Scans
 %start         = 100;    % Scan Index (Set in setup.m)
@@ -9,8 +16,8 @@ skip          = 1;       % Points
 
 
 % Framework Options
-verbose              = false;
-debugplots           = false;         
+debugplots           = true;         % Enable Debug plots
+debugPlotsSkip       = 30;           % update plots every x scans
 
 usePrevOffsetAsGuess = false;        % Constant Velocity assumption
 
@@ -108,10 +115,10 @@ for scanIdx = start:step:stopIdx
     
     
     % Remove points that are out of plane
-    u = mean(Fusion_scan(:,3));
-    I = abs(Fusion_scan(:,3) - u) < 0.4;
-    scan = Fusion_scan(I, [1,2]);
-    %scan = Fusion_scan(:, [1,2]);
+    %u = mean(Fusion_scan(:,3));
+    %I = abs(Fusion_scan(:,3) - u) < 0.4;
+    %scan = Fusion_scan(I, [1,2]);
+    scan = Fusion_scan;
     
     
     % Skip empty scans...
@@ -138,13 +145,14 @@ for scanIdx = start:step:stopIdx
       dy    = init_guess(2);
       theta = init_guess(3);
 
-      M = [ cos(theta) -sin(theta) dx ;
-            sin(theta)  cos(theta) dy ;
-            0           0          1  ];
+      M = [ cos(theta) -sin(theta) 0  dx ;
+            sin(theta)  cos(theta) 0  dy ;
+            0           0          1  0  ;
+            0           0          0  1 ];
 
       scanWorldFrame = [scan ones(size(scan,1), 1)];
       scanWorldFrame = scanWorldFrame * M';
-      scanWorldFrame = scanWorldFrame(:,[1,2]);
+      scanWorldFrame = scanWorldFrame(:,[1:3]);
 
       % extract points around the current scan for a reference map
       map = map(map(:,1) > min(scanWorldFrame(:,1)) - MapBorderSize, :);
@@ -215,9 +223,10 @@ for scanIdx = start:step:stopIdx
     dy    = pose(2);
     theta = pose(3);
     
-    Trans = [ cos(theta) -sin(theta) dx ;
-              sin(theta)  cos(theta) dy ;
-              0           0          1  ];
+    Trans = [ cos(theta) -sin(theta) 0 dx ;
+              sin(theta)  cos(theta) 0 dy ;
+              0           0          1  0 ;
+              0           0          0  1 ];
     temp =  [tempScan ones(size(tempScan,1),1)] * Trans';
     
     
@@ -226,9 +235,10 @@ for scanIdx = start:step:stopIdx
     dy    = T(2);
     theta = T(3);
     
-    LTrans = [ cos(theta) -sin(theta) dx ;
-               sin(theta)  cos(theta) dy ;
-               0           0          1  ];
+    LTrans = [ cos(theta) -sin(theta) 0 dx ;
+               sin(theta)  cos(theta) 0 dy ;
+               0           0          1 0 ;
+               0           0          0 1 ];
     tempL = [tempScan ones(size(tempScan,1),1)] * LTrans';
     
     
@@ -242,7 +252,7 @@ for scanIdx = start:step:stopIdx
 
         % Only add new points to the map 
         I = ~logical(hits);
-        newpts = tempL(I, 1:2);            
+        newpts = tempL(I, 1:3);            
         world = [world; newpts]; %#ok<AGROW>
 
         WorldUpdated = true;
@@ -253,7 +263,7 @@ for scanIdx = start:step:stopIdx
     
     
     % Debug Plots
-    if debugplots  && mod(length(path), 400) == 0 
+    if debugplots  && mod(length(path), debugPlotsSkip) == 0 
   
         % Limit number of points in the map
         MaxMapSize = 100000;
@@ -347,6 +357,10 @@ title(['Scan: ' num2str(scanIdx)]);
 
 set(gcf,'PaperUnits','inches','PaperPosition', [0 0 8.5 11]);
 print([ OutPath DatasetName],'-dpdf');
+
+
+savepcd([ OutPath DatasetName '.pcd'] ,world' ,'binary');
+
 
 
 % Plot dT

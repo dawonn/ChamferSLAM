@@ -38,8 +38,9 @@ function [ T, bestHits] = chamferMatch( T, scan, ogrid, Dmap, varargin)
         for theta = ([-r 0 r]) + T(1,3)
 
             % Rotate scan
-            m = [cos(theta) -sin(theta);
-                 sin(theta)  cos(theta)] ;
+            m = [cos(theta) -sin(theta) 0 ;
+                 sin(theta)  cos(theta) 0 ;
+                 0           0          1 ];
             S = (m * scan')';
 
 
